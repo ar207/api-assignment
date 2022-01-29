@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\BookingSlot;
 use App\Models\DoctorSpeciality;
 use App\Models\DoctorTimeSlot;
 use App\Models\User;
@@ -80,13 +81,18 @@ class DoctorController extends Controller
      */
     public function edit(Request $request)
     {
-        $userId = $request->input('user_id');
+        $userId = loginId();
         $imagePath = asset(MobileUserImagePath);
         if (!empty($userId)) {
-            $this->data['user'] = User::find($userId);
-            if (!empty($this->data['user'])) {
-                $this->data['user']->profile_image = !empty($this->data['user']->profile_image) ? $imagePath . '/' . $this->data['user']->profile_image : '';
-                $this->data['speciality'] = DoctorSpeciality::find($this->data['user']->speciality_id);
+            $user = User::find($userId);
+            if (!empty($user)) {
+                $user->profile_image = !empty($this->data['user']->profile_image) ? $imagePath . '/' . $this->data['user']->profile_image : '';
+                $this->data['user'] = $user->toArray();
+                $speciality = DoctorSpeciality::find($this->data['user']['speciality_id']);
+                if (!empty($speciality)) {
+                    $this->data['speciality'] = $speciality->toArray();
+                }
+                $this->data['timeSlot'] = DoctorTimeSlot::where('user_id', $userId)->get()->toArray();
             }
         }
 
@@ -105,8 +111,6 @@ class DoctorController extends Controller
         $validator = \Validator::make($input, [
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
-            'password' => ['required', 'string'],
-            'phone' => ['required'],
             'speciality_id' => ['required'],
             'from' => ['required'],
             'to' => ['required'],
@@ -197,7 +201,7 @@ class DoctorController extends Controller
                 $arr[$key] = $row;
                 foreach ($timeSlot as $ind => $item) {
                     if ($item['user_id'] == $row['id']) {
-                        $arr[$key]['available_time'] = $item;
+                        $arr[$key]['available_time'][] = $item;
                     }
                 }
             }
