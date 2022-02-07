@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\CreateDoctorRequest;
+use App\Http\Requests\DoctorRequest;
 use App\Models\BookingSlot;
 use App\Models\DoctorSpeciality;
 use App\Models\DoctorTimeSlot;
@@ -39,36 +41,24 @@ class DoctorController extends Controller
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function store(Request $request)
+    public function store(CreateDoctorRequest $request)
     {
         $input = $request->all();
-        $validator = \Validator::make($input, [
-            'first_name' => ['required', 'string', 'max:255'],
-            'last_name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
-            'password' => ['required', 'string'],
-            'phone' => ['required'],
-            'speciality_id' => ['required'],
-        ]);
-        if ($validator->fails()) {
-            $this->message = formatErrors($validator->errors()->toArray());
-        } else {
-            $input['password'] = Hash::make($input['password']);
-            $input['name'] = $input['first_name'] . ' ' . $input['last_name'];
-            $input['user_type'] = 1;
-            $input['created_at'] = currentDateTime();
-            $input['updated_at'] = currentDateTime();
-            $user = User::create($input);
-            $token = $user->createToken('MyApp')->accessToken;
-            $this->data['token'] = $token;
-            $this->data['user_id'] = $user->id;
-            $this->data['name'] = $user->name;
-            $this->data['email'] = $user->email;
-            $this->data['phone'] = $user->phone;
-            $this->data['user_type'] = $user->user_type;
-            $this->success = true;
-            $this->message = 'Doctor created successfully';
-        }
+        $input['password'] = Hash::make($input['password']);
+        $input['name'] = $input['first_name'] . ' ' . $input['last_name'];
+        $input['user_type'] = 1;
+        $input['created_at'] = currentDateTime();
+        $input['updated_at'] = currentDateTime();
+        $user = User::create($input);
+        $token = $user->createToken('MyApp')->accessToken;
+        $this->data['token'] = $token;
+        $this->data['user_id'] = $user->id;
+        $this->data['name'] = $user->name;
+        $this->data['email'] = $user->email;
+        $this->data['phone'] = $user->phone;
+        $this->data['user_type'] = $user->user_type;
+        $this->success = true;
+        $this->message = 'Doctor created successfully';
 
         return response()->json(['success' => $this->success, 'data' => $this->data, 'message' => $this->message]);
     }
@@ -105,20 +95,9 @@ class DoctorController extends Controller
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function update(Request $request)
+    public function update(DoctorRequest $request)
     {
         $input = $request->all();
-        $validator = \Validator::make($input, [
-            'first_name' => ['required', 'string', 'max:255'],
-            'last_name' => ['required', 'string', 'max:255'],
-            'speciality_id' => ['required'],
-            'from' => ['required'],
-            'to' => ['required'],
-            'date' => ['required'],
-        ]);
-        if ($validator->fails()) {
-            $this->message = formatErrors($validator->errors()->toArray());
-        } else {
             $userId = loginId();
             if (!empty($userId)) {
                 $user = User::find($userId);
@@ -145,22 +124,21 @@ class DoctorController extends Controller
                     $user->profile_image = (!empty($fileName) ? $fileName : $user->profile_image);
                     $user->save();
 
-                    $date = databaseDateFormat($input['date']);
-
-                    $timeSlot = DoctorTimeSlot::where('user_id', $userId)->first();
-                    if (empty($timeSlot)) {
+                    DoctorTimeSlot::where('user_id', $userId)->delete();
+                    $data = json_decode($request->input('data'),true);
+                    foreach ($data['data'] as $key => $row){
                         $timeSlot = new DoctorTimeSlot();
+                        $timeSlot->user_id = $userId;
+                        $timeSlot->from = !empty($row['from']) ? $row['from'] : '';
+                        $timeSlot->to = !empty($row['to']) ? $row['to'] : '';
+                        $date = databaseDateFormat($row['date']);
+                        $timeSlot->date = !empty($date) ? $date : '';
+                        $timeSlot->save();
+                        $this->success = true;
+                        $this->message = 'Profile updated successfully';
                     }
-                    $timeSlot->user_id = $userId;
-                    $timeSlot->from = !empty($input['from']) ? $input['from'] : $timeSlot->from;
-                    $timeSlot->to = !empty($input['to']) ? $input['to'] : $timeSlot->to;
-                    $timeSlot->date = !empty($date) ? $date : $timeSlot->date;
-                    $timeSlot->save();
-                    $this->success = true;
-                    $this->message = 'Profile updated successfully';
                 }
             }
-        }
 
         return response()->json(['success' => $this->success, 'message' => $this->message]);
     }
